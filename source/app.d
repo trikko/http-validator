@@ -2,40 +2,42 @@ import std;
 import consolecolors;
 import core.thread;
 
-short 	PORT = 3000;
-string 	HOST = "localhost";
+// Global configuration
+short PORT = 3000;
+string HOST = "localhost";
 
+// Structure to hold HTTP test results
 struct Result
 {
-	HttpResponse[] 	responses;
-	Duration 			duration;
-	ResultStatus 		status;
+	HttpResponse[] 	responses;   // Array of HTTP responses received
+	Duration 			duration;    // Test execution time
+	ResultStatus 		status;      // Final status of the test
 }
 
+// Structure to parse and store HTTP response components
 struct HttpResponse
 {
-	char[] httpVersion;
-	char[] status;
-	char[] reason;
-
-	string[string] headers;
-
-	char[] body;
+	char[] httpVersion;         // HTTP version (e.g., HTTP/1.1)
+	char[] status;             // Status code (e.g., 200, 404)
+	char[] reason;             // Status reason (e.g., OK, Not Found)
+	string[string] headers;    // Response headers
+	char[] body;              // Response body
 }
 
+// Possible test result statuses
 enum ResultStatus
 {
-	CLOSED = 0,
-	KEEP_ALIVE = 1,
-	MISSING_HEADERS = 2,
-	MISSING_HTTP_VERSION = 3,
-	BAD_STATUS_LINE = 4,
-	MISSING_BODY = 5,
-	BAD_CHUNKED_BODY = 6,
-	SOCKET_EXCEPTION = 7
+	CLOSED = 0,               // Connection closed normally
+	KEEP_ALIVE = 1,          // Connection kept alive
+	MISSING_HEADERS = 2,     // Response headers not found
+	MISSING_HTTP_VERSION = 3, // HTTP version not found in response
+	BAD_STATUS_LINE = 4,     // Malformed status line
+	MISSING_BODY = 5,        // Response body missing
+	BAD_CHUNKED_BODY = 6,    // Malformed chunked encoding
+	SOCKET_EXCEPTION = 7     // Socket connection error
 }
 
-
+// Main test structure
 struct HttpTest
 {
 	string 	name;
@@ -64,14 +66,17 @@ struct HttpTest
 		this.message = message;
 	}
 
-	auto run(string request, Duration timeout = 1000.msecs)
+	void run(string request, Duration timeout = 1000.msecs)
 	{
+		// Optimistic
 		passed = true;
 
+		// Setup socket connection
 		auto tm = Clock.currTime;
 		auto socket = new TcpSocket(AddressFamily.INET);
 		scope(exit) socket.close();
 
+		// Try to connect to server
 		try {
 			socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, 100.msecs);
 			socket.connect(new InternetAddress(HOST, PORT));
@@ -83,15 +88,15 @@ struct HttpTest
 			return;
 		}
 
+		// Send request in chunks if split by null bytes
 		foreach (idx, chunk; request.split("\0"))
 		{
 			if (idx > 0)
 				Thread.sleep(5.msecs);
-
 			socket.send(chunk);
 		}
 
-		// Read response
+		// Read and parse response
 		char[] response;
 		char[1024] buffer;
 
@@ -118,57 +123,73 @@ struct HttpTest
 			response ~= buffer[0..received];
 		}
 
+		// How much does it takes?
 		result.duration = Clock.currTime - tm;
 
+		// Parse all responses
 		while(!response.empty)
 		{
+			// Find the end of headers
 			auto headersEnd = response.indexOf("\r\n\r\n");
 
+			// If headers not found, something went wrong
 			if (headersEnd == -1)
 			{
 				result.status = ResultStatus.MISSING_HEADERS;
 				break;
 			}
 
+			// Get current response
 			auto current = response[0..headersEnd + 2];
 			response = response[headersEnd + 4..$];
 
+			// Check if it's HTTP/1.x
 			if (!current.startsWith("HTTP/1."))
 			{
 				result.status = ResultStatus.MISSING_HTTP_VERSION;
 				break;
 			}
 
+			// Parse the first line of the response
 			auto firstLine = current.matchFirst("^(HTTP/1.[0-9]) ([0-9]{3}) ?([^\r\n]*)\r\n");
 
+			// If first line do not match, something went wrong
 			if (!firstLine)
 			{
 				result.status = ResultStatus.BAD_STATUS_LINE;
 				break;
 			}
 
+			// Parse HTTP version, status code, and reason
 			auto httpVersion = firstLine[1];
 			auto httpStatus = firstLine[2];
 			auto httpReason = firstLine[3];
 
+			// Remove the first line from the current response
 			current = current[firstLine[0].length..$];
 
 			auto headers = current.matchAll("([^:]*): ?(.*)\r\n");
 
+			// Create a new HttpResponse structure
 			HttpResponse currentHttpResponse;
 			currentHttpResponse.httpVersion = httpVersion;
 			currentHttpResponse.status = httpStatus;
 			currentHttpResponse.reason = httpReason;
 
+			// Parse headers
 			foreach (header; headers)
 				currentHttpResponse.headers[cast(string)header[1].toLower] = cast(string)header[2];
 
+			// If content-length header is present, check if body is present
 			if ("content-length" in currentHttpResponse.headers)
 			{
+				// Get content length
 				auto contentLength = currentHttpResponse.headers["content-length"].to!int;
 
+				// If content length is greater than 0, check if body is present
 				if (contentLength > 0)
 				{
+					// If body is not present, something went wrong
 					if (response.length < contentLength)
 					{
 						result.status = ResultStatus.MISSING_BODY;
@@ -181,35 +202,47 @@ struct HttpTest
 			}
 			else if ("transfer-encoding" in currentHttpResponse.headers && currentHttpResponse.headers["transfer-encoding"].toLower == "chunked")
 			{
+				// If transfer-encoding is chunked, read body in chunks
 				while(!response.empty)
 				{
+					// Read the size of the chunk
 					auto chunkSizeChars = response.matchFirst("^([0-9a-fA-F]+)\r\n");
 
+					// If chunk size is not found, something went wrong
 					if (!chunkSizeChars)
 					{
 						result.status = ResultStatus.BAD_CHUNKED_BODY;
 						break;
 					}
 
+					// Get chunk size
 					auto chunkSize = chunkSizeChars[1].to!int(16);
+
+					// Read chunk
 					auto chunk = response[0..chunkSize];
 
+					// If chunk size is 0, we've reached the end of the body
 					if (chunkSize == 0)
 						break;
 
+					// Remove the chunk from the response
 					response = response[chunkSize + 2..$];
 
+					// Append chunk to the body
 					currentHttpResponse.body ~= chunk;
 				}
 			}
 
+			// Add current response to the list
 			result.responses ~= currentHttpResponse;
 		}
 	}
 }
 
+// Main function with test cases
 int main(string[] args)
 {
+	// Parse command line arguments
 	auto info = getopt(
 		args,
 		"host",   &HOST,
@@ -220,6 +253,22 @@ int main(string[] args)
 	{
 		defaultGetoptPrinter("http-tester", info.options);
 		return -1;
+	}
+
+	// Test cases follow this pattern:
+	// 1. Create test with descriptive name
+	// 2. Send HTTP request
+	// 3. Verify response matches expectations
+	// 4. Print results
+
+	{
+		auto test = HttpTest("Test case description");
+		test.run("HTTP REQUEST STRING");
+
+		// Verify conditions
+		if (condition) { test.error = "Error message"; }
+
+		test.print();
 	}
 
 	{
