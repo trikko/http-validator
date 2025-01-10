@@ -5,4 +5,4 @@ A simple test suite designed to validate whether your HTTP server implementation
 ### How to run
 
 1. Install a D compiler from [dlang.org](https://dlang.org)
-2. Run the tests using dub: `dub -- --port 8080 --host localhost`
+2. Run the tests using dub: `dub` or `dub -- --port 8080 --host localhost`
