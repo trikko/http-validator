@@ -3,6 +3,7 @@ docs.json
 __dummy.html
 docs/
 /http-validator
+dub.selection.json
 http-validator.so
 http-validator.dylib
 http-validator.dll
