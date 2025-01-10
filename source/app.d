@@ -261,16 +261,17 @@ int main(string[] args)
 	// 3. Verify response matches expectations
 	// 4. Print results
 
+/+
 	{
 		auto test = HttpTest("Test case description");
 		test.run("HTTP REQUEST STRING");
 
 		// Verify conditions
-		if (condition) { test.error = "Error message"; }
+		if (check) { test.error = "Error message"; }
 
 		test.print();
 	}
-
++/
 	{
 		auto test = HttpTest("Minimal HTTP/1.0 request");
 		test.run("GET / HTTP/1.0\r\n\r\n");
