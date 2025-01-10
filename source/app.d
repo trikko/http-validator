@@ -17,24 +17,24 @@ struct Result
 // Structure to parse and store HTTP response components
 struct HttpResponse
 {
-	char[] httpVersion;         // HTTP version (e.g., HTTP/1.1)
-	char[] status;             // Status code (e.g., 200, 404)
-	char[] reason;             // Status reason (e.g., OK, Not Found)
-	string[string] headers;    // Response headers
+	char[] httpVersion;       // HTTP version (e.g., HTTP/1.1)
+	char[] status;            // Status code (e.g., 200, 404)
+	char[] reason;            // Status reason (e.g., OK, Not Found)
+	string[string] headers;   // Response headers
 	char[] body;              // Response body
 }
 
 // Possible test result statuses
 enum ResultStatus
 {
-	CLOSED = 0,               // Connection closed normally
-	KEEP_ALIVE = 1,          // Connection kept alive
-	MISSING_HEADERS = 2,     // Response headers not found
-	MISSING_HTTP_VERSION = 3, // HTTP version not found in response
-	BAD_STATUS_LINE = 4,     // Malformed status line
-	MISSING_BODY = 5,        // Response body missing
-	BAD_CHUNKED_BODY = 6,    // Malformed chunked encoding
-	SOCKET_EXCEPTION = 7     // Socket connection error
+	CLOSED = 0,              	// Connection closed normally
+	KEEP_ALIVE = 1,         	// Connection kept alive
+	MISSING_HEADERS = 2,    	// Response headers not found
+	MISSING_HTTP_VERSION = 3, 	// HTTP version not found in response
+	BAD_STATUS_LINE = 4,    	// Malformed status line
+	MISSING_BODY = 5,       	// Response body missing
+	BAD_CHUNKED_BODY = 6,   	// Malformed chunked encoding
+	SOCKET_EXCEPTION = 7    	// Socket connection error
 }
 
 // Main test structure
