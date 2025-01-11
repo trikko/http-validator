@@ -68,7 +68,7 @@ struct HttpTest
 		this.message = message;
 	}
 
-	void run(string request, Duration timeout = 1000.msecs)
+	void run(string request, Duration timeout = 100.msecs)
 	{
 		// Optimistic
 		passed = true;

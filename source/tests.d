@@ -310,3 +310,51 @@ void test_0025()
 
    test.print();
 }
+
+void test_0027()
+{
+   auto test = HttpTest("Multipart post");
+
+   auto postBody = "--123\r\nContent-Disposition: form-data; name=\"field1\"\r\n\r\nHello World\r\n--123--\r\n";
+   test.run("POST / HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\ncontent-type: multipart/form-data; boundary=123\r\ncontent-length: " ~ postBody.length.to!string ~ "\r\n\r\n" ~ postBody);
+
+   if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0028()
+{
+   auto test = HttpTest("Invalid multipart post");
+
+   auto postBody = "--123\r\nContent-Disposition: form-data; name=\"field1\"\r\n\r\nHello World\r\n";;
+   test.run("POST / HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\ncontent-type: multipart/form-data; boundary=123\r\ncontent-length: " ~ postBody.length.to!string ~ "\r\n\r\n" ~ postBody);
+
+   if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0029()
+{
+   auto test = HttpTest("Wrong line terminator");
+   test.run("GET / HTTP/1.1\rHost: localhost\rConnection: close\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0030()
+{
+   auto test = HttpTest("Wrong line terminator");
+   test.run("GET / HTTP/1.1\nHost: localhost\nConnection: close\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
