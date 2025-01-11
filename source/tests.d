@@ -162,7 +162,7 @@ void test_0013()
 void test_0014()
 {
    auto test = HttpTest("Wrong HTTP version");
-   test.run("GET / HTTP/1.3\r\n\r\n");
+   test.run("GET / HTTP/1.3\r\nHost: localhost\r\n\r\n");
 
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
@@ -353,6 +353,36 @@ void test_0030()
 {
    auto test = HttpTest("Wrong line terminator");
    test.run("GET / HTTP/1.1\nHost: localhost\nConnection: close\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0031()
+{
+   auto test = HttpTest("Missing HTTP version");
+   test.run("GET / \r\nHost: localhost\r\nConnection: close\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0032()
+{
+   auto test = HttpTest("Wrong protocol");
+   test.run("GET / SIP/2.0\r\nHost: localhost\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0033()
+{
+   auto test = HttpTest("Empty request");
+   test.run("\r\n\r\n");
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
 
