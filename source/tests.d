@@ -388,3 +388,13 @@ void test_0033()
 
    test.print();
 }
+
+void test_0034()
+{
+   auto test = HttpTest("Lowercase method");
+   test.run("get / HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
