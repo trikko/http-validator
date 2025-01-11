@@ -80,7 +80,7 @@ struct HttpTest
 
 		// Try to connect to server
 		try {
-			socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, 100.msecs);
+			socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, 10.msecs);
 			socket.connect(new InternetAddress(HOST, PORT));
 		}
 		catch(Exception e)
