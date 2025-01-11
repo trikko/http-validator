@@ -22,6 +22,7 @@ int main(string[] args)
 	}
 
 
+	// Run all tests in tests.d
 	foreach (string memberName; __traits(allMembers, tests))
 	{
 		static if (memberName.startsWith("test_"))
