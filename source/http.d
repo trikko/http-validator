@@ -125,6 +125,8 @@ struct HttpTest
 			response ~= buffer[0..received];
 		}
 
+      auto original = response;
+
 		// How much does it takes?
 		result.duration = Clock.currTime - tm;
 
@@ -217,10 +219,17 @@ struct HttpTest
 						break;
 					}
 
+               response = response[chunkSizeChars[1].length..$];
+
 					// Get chunk size
 					auto chunkSize = chunkSizeChars[1].to!int(16);
 
 					// Read chunk
+               if (chunkSize > response.length)
+               {
+                  result.status = ResultStatus.BAD_CHUNKED_BODY;
+                  break;
+               }
 					auto chunk = response[0..chunkSize];
 
 					// If chunk size is 0, we've reached the end of the body
