@@ -273,7 +273,7 @@ void test_0022()
 void test_0023()
 {
    auto test = HttpTest("100-continue with POST");
-   test.run("POST / HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100\r\nExpect: 100-continue\r\nconnection: close\r\n\r\n");
+   test.run("POST /user HTTP/1.1\r\nHost: localhost\r\nContent-Length: 100\r\nExpect: 100-continue\r\nconnection: close\r\n\r\n");
 
    if (test.result.responses.length < 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "100") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
@@ -316,7 +316,7 @@ void test_0027()
    auto test = HttpTest("Multipart post");
 
    auto postBody = "--123\r\nContent-Disposition: form-data; name=\"field1\"\r\n\r\nHello World\r\n--123--\r\n";
-   test.run("POST / HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\ncontent-type: multipart/form-data; boundary=123\r\ncontent-length: " ~ postBody.length.to!string ~ "\r\n\r\n" ~ postBody);
+   test.run("POST /user HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\ncontent-type: multipart/form-data; boundary=123\r\ncontent-length: " ~ postBody.length.to!string ~ "\r\n\r\n" ~ postBody);
 
    if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
    else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
@@ -330,7 +330,7 @@ void test_0028()
    auto test = HttpTest("Invalid multipart post");
 
    auto postBody = "--123\r\nContent-Disposition: form-data; name=\"field1\"\r\n\r\nHello World\r\n";;
-   test.run("POST / HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\ncontent-type: multipart/form-data; boundary=123\r\ncontent-length: " ~ postBody.length.to!string ~ "\r\n\r\n" ~ postBody);
+   test.run("POST /user HTTP/1.1\r\nHost: localhost\r\nconnection: close\r\ncontent-type: multipart/form-data; boundary=123\r\ncontent-length: " ~ postBody.length.to!string ~ "\r\n\r\n" ~ postBody);
 
    if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
    else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
@@ -412,9 +412,68 @@ void test_0035()
 void test_0036()
 {
    auto test = HttpTest("ZZZ content-length");
-   test.run("POST / HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: zzz\r\n\r\n");
+   test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: zzz\r\n\r\n");
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
 
+   test.print();
+}
+
+void test_0037()
+{
+   enum hundred_tb = 100_000_000_000_000;
+
+   // Sending 100TB file (not really)
+   auto test = HttpTest("Fill up server's memory and/or disk? (100TB request)");
+   auto bodyReader = new class BodyReader
+   {
+      size_t size = 1024*1024*5;   // Sending just 5MB, I don't want kill the server for real
+      size_t remaining() { return size; }
+      char[] chunk(size_t sz) { auto data = 'a'.repeat(sz).to!(char[]); this.size -= data.length; return data; }
+   };
+
+   test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ hundred_tb.to!string ~ "\r\n\r\n", bodyReader);
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400" && test.result.responses[0].status != "413") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
+   test.print();
+}
+
+void test_0038()
+{
+   enum four_gb = 4_000_000_000;
+
+   // Sending 4GB file
+   auto test = HttpTest("Fill up server's memory and/or disk? (4GB request)");
+   auto bodyReader = new class BodyReader
+   {
+      size_t size = 1024*1024*5;   // Sending just 5MB, I don't want kill the server for real
+      size_t remaining() { return size; }
+      char[] chunk(size_t sz) { auto data = 'a'.repeat(sz).to!(char[]); this.size -= data.length; return data; }
+   };
+
+   test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ four_gb.to!string ~ "\r\n\r\n", bodyReader);
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400" && test.result.responses[0].status != "413") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
+   test.print();
+}
+
+void test_0039()
+{
+   enum one_kb = 1024;
+
+   // Sending 4GB file
+   auto test = HttpTest("Sending just 100kb, should be ok");
+   auto bodyReader = new class BodyReader
+   {
+      size_t size = one_kb;   // Sending just 100kb
+      size_t remaining() { return size; }
+      char[] chunk(size_t sz) { auto data = 'a'.repeat(sz).to!(char[]); this.size -= data.length; return data; }
+   };
+
+   test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ one_kb.to!string ~ "\r\n\r\n", bodyReader);
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
    test.print();
 }
