@@ -463,11 +463,11 @@ void test_0039()
 {
    enum one_kb = 1024;
 
-   // Sending 4GB file
-   auto test = HttpTest("Sending just 100kb, should be ok");
+   // Sending 1kb file
+   auto test = HttpTest("Sending just one kb, should be ok");
    auto bodyReader = new class BodyReader
    {
-      size_t size = one_kb;   // Sending just 100kb
+      size_t size = one_kb;   // Sending just one kb
       size_t remaining() { return size; }
       char[] chunk(size_t sz) { auto data = 'a'.repeat(sz).to!(char[]); this.size -= data.length; return data; }
    };
