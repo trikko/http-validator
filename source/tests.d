@@ -398,3 +398,23 @@ void test_0034()
 
    test.print();
 }
+
+void test_0035()
+{
+   auto test = HttpTest("Negative content length");
+   test.run("POST / HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: -1\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0036()
+{
+   auto test = HttpTest("ZZZ content-length");
+   test.run("POST / HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: zzz\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
