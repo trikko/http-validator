@@ -36,6 +36,12 @@ enum ResultStatus
 	SOCKET_EXCEPTION = 7    	// Socket connection error
 }
 
+interface BodyReader
+{
+   size_t remaining();
+   char[] chunk(size_t size);
+}
+
 // Main test structure
 struct HttpTest
 {
@@ -68,7 +74,7 @@ struct HttpTest
 		this.message = message;
 	}
 
-	void run(string request, Duration timeout = 100.msecs)
+	void run(string request, BodyReader bodyReader = null, Duration timeout = 100.msecs)
 	{
 		// Optimistic
 		passed = true;
@@ -97,6 +103,16 @@ struct HttpTest
 				Thread.sleep(5.msecs);
 			socket.send(chunk);
 		}
+
+      if (bodyReader !is null)
+      {
+         while (bodyReader.remaining() > 0)
+         {
+            char[] chunk;
+            chunk = bodyReader.chunk(min(1024*1024, bodyReader.remaining()));
+            socket.send(chunk);
+         }
+      }
 
 		// Read and parse response
 		char[] response;
@@ -150,7 +166,7 @@ struct HttpTest
 			// Check if it's HTTP/1.x
 			if (!current.startsWith("HTTP/1."))
 			{
-				result.status = ResultStatus.MISSING_HTTP_VERSION;
+            result.status = ResultStatus.MISSING_HTTP_VERSION;
 				break;
 			}
 
@@ -225,19 +241,24 @@ struct HttpTest
 					auto chunkSize = chunkSizeChars[1].to!int(16);
 
 					// Read chunk
-               if (chunkSize > response.length)
+               if (chunkSize + 2 > response.length)
                {
                   result.status = ResultStatus.BAD_CHUNKED_BODY;
                   break;
                }
-					auto chunk = response[0..chunkSize];
 
-					// If chunk size is 0, we've reached the end of the body
-					if (chunkSize == 0)
-						break;
+					auto chunk = response[0..chunkSize];
 
 					// Remove the chunk from the response
 					response = response[chunkSize + 2..$];
+
+					// If chunk size is 0, we've reached the end of the body
+					if (chunkSize == 0)
+               {
+                  if (response.length < 2 || response[0..2] != "\r\n") result.status = ResultStatus.BAD_CHUNKED_BODY;
+                  else response = response[2..$];
+                  break;
+               }
 
 					// Append chunk to the body
 					currentHttpResponse.body ~= chunk;
