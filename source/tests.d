@@ -401,7 +401,7 @@ void test_0034()
 
 void test_0035()
 {
-   auto test = HttpTest("Negative content length");
+   auto test = HttpTest("Bad content length (negative)");
    test.run("POST / HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: -1\r\n\r\n");
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
@@ -411,7 +411,7 @@ void test_0035()
 
 void test_0036()
 {
-   auto test = HttpTest("ZZZ content-length");
+   auto test = HttpTest("Bad content-length (zzz)");
    test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: zzz\r\n\r\n");
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
@@ -420,6 +420,16 @@ void test_0036()
 }
 
 void test_0037()
+{
+   auto test = HttpTest("Bad content-length (fake hex)");
+   test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: ff\r\n\r\n");
+   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0038()
 {
    enum hundred_tb = 100_000_000_000_000;
 
@@ -436,10 +446,11 @@ void test_0037()
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400" && test.result.responses[0].status != "413") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
    else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
+
    test.print();
 }
 
-void test_0038()
+void test_0039()
 {
    enum four_gb = 4_000_000_000;
 
@@ -456,10 +467,11 @@ void test_0038()
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400" && test.result.responses[0].status != "413") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
    else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
+
    test.print();
 }
 
-void test_0039()
+void test_0040()
 {
    enum one_kb = 1024;
 
@@ -475,5 +487,66 @@ void test_0039()
    test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ one_kb.to!string ~ "\r\n\r\n", bodyReader);
    if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+void test_0041()
+{
+   auto randomId = uniform(150, 999).to!string;
+   auto test = HttpTest("Sanity check #1");
+   test.run("GET /user/" ~ randomId ~ " HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
+
+   if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else if (test.result.responses[0].body != randomId) { test.error = "Wrong body: " ~ test.result.responses[0].body.to!string; }
+   else test.message = "Url: /user/" ~ randomId ~ " Returned body: " ~ test.result.responses[0].body.to!string;
+   test.print();
+}
+
+void test_0042()
+{
+   auto randomId = uniform(150, 999).to!string;
+   auto randomKey = iota(uniform(4,8)).map!(i => uniform('a', 'z')).array.to!string;
+   auto randomValue = iota(uniform(4,8)).map!(i => uniform('a', 'z')).array.to!string;
+
+   auto url = "/user/" ~ randomId ~ "?" ~ randomKey ~ "=" ~ randomValue;
+   auto test = HttpTest("Sanity check #2");
+   test.run("GET " ~ url ~ " HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
+
+   if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else if (test.result.responses[0].body != randomId) { test.error = "Wrong body: " ~ test.result.responses[0].body.to!string; }
+   else test.message = "Url: " ~ url ~ " Returned body: " ~ test.result.responses[0].body.to!string;
+   test.print();
+}
+
+void test_0043()
+{
+   auto randomId = iota(uniform(4,8)).map!(i => uniform('a', 'z')).array.to!string;
+   auto test = HttpTest("Sanity check #3");
+   test.run("GET /user/" ~ randomId ~ " HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
+
+   if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else if (test.result.responses[0].body != randomId) { test.error = "Wrong body: " ~ test.result.responses[0].body.to!string; }
+   else test.message = "Url: /user/" ~ randomId ~ " Returned body: " ~ test.result.responses[0].body.to!string;
+
+   test.print();
+}
+
+
+void test_0044()
+{
+   auto test = HttpTest("Sanity check #4 (404)");
+   test.run("GET /not-found HTTP/1.1\r\nConnection: close\r\nHost: localhost\r\n\r\n");
+
+   if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "404") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
    test.print();
 }
