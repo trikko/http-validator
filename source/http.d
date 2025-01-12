@@ -235,7 +235,7 @@ struct HttpTest
 						break;
 					}
 
-               response = response[chunkSizeChars[1].length..$];
+					response = response[chunkSizeChars[1].length + 2..$];
 
 					// Get chunk size
 					auto chunkSize = chunkSizeChars[1].to!int(16);
@@ -254,11 +254,7 @@ struct HttpTest
 
 					// If chunk size is 0, we've reached the end of the body
 					if (chunkSize == 0)
-               {
-                  if (response.length < 2 || response[0..2] != "\r\n") result.status = ResultStatus.BAD_CHUNKED_BODY;
-                  else response = response[2..$];
                   break;
-               }
 
 					// Append chunk to the body
 					currentHttpResponse.body ~= chunk;
