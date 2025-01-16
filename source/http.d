@@ -33,7 +33,9 @@ enum ResultStatus
 	BAD_STATUS_LINE = 4,    	// Malformed status line
 	MISSING_BODY = 5,       	// Response body missing
 	BAD_CHUNKED_BODY = 6,   	// Malformed chunked encoding
-	SOCKET_EXCEPTION = 7    	// Socket connection error
+	SOCKET_EXCEPTION = 7,    	// Socket connection error
+   SLOW_RESPONSE = 8,         // Response is too slow
+	DATA_NOT_SENT = 9,         // Data not sent
 }
 
 interface BodyReader
@@ -49,7 +51,7 @@ struct HttpTest
    static string HOST = "localhost";
 
 	string 	name;
-	bool 		passed;
+	bool 		passed = true;
 	string 	message;
 
 	Result 	result;
@@ -87,6 +89,7 @@ struct HttpTest
 		// Try to connect to server
 		try {
 			socket.setOption(SocketOptionLevel.SOCKET, SocketOption.RCVTIMEO, 10.msecs);
+			socket.setOption(SocketOptionLevel.SOCKET, SocketOption.SNDTIMEO, 10.msecs);
 			socket.connect(new InternetAddress(HOST, PORT));
 		}
 		catch(Exception e)
@@ -106,11 +109,35 @@ struct HttpTest
 
       if (bodyReader !is null)
       {
+         size_t totalSent = 0;
          while (bodyReader.remaining() > 0)
          {
             char[] chunk;
             chunk = bodyReader.chunk(min(1024*1024, bodyReader.remaining()));
-            socket.send(chunk);
+            auto sendStart = Clock.currTime;
+
+				auto res = socket.send(chunk);
+				if (res == 0) break;
+            else if (res == -1)
+				{
+					if (wouldHaveBlocked())
+					{
+						result.status = ResultStatus.DATA_NOT_SENT;
+						return;
+					}
+					else break;
+				}
+            auto sent = chunk.length;
+
+            auto elapsed = 1+(Clock.currTime - sendStart).total!"msecs";
+
+            // Less than 1MB/s? We're on localhost, come on!
+            if (elapsed > 0 && (sent / elapsed) < 1024)
+            {
+               result.status = ResultStatus.SLOW_RESPONSE;
+               return;
+            }
+
          }
       }
 

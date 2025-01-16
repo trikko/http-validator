@@ -31,7 +31,7 @@ void test_0002()
 void test_0003()
 {
    auto test = HttpTest("Partial HTTP/1.1 request #2");
-   test.run("G\0E\0T\0 / \0HTTP/1.1\r\0\n\0Connection: close\0\r\nHost: \0localhost\r\0\n\0\r\0\n");
+   test.run("G\0E\0T\0 / \0H\0TTP/1.1\r\0\n\0Conne\0ction\0: cl\0ose\0\r\nHo\0st:\0 \0loca\0lhost\r\0\n\0\r\0\n");
 
    if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
    else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
@@ -443,7 +443,10 @@ void test_0038()
    };
 
    test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ hundred_tb.to!string ~ "\r\n\r\n", bodyReader);
-   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+
+   if (test.result.status == ResultStatus.DATA_NOT_SENT) { test.error = "Data not sent"; }
+   else if (test.result.status == ResultStatus.KEEP_ALIVE && test.result.responses.length == 0) { test.error = "Server is not blocking data sending?"; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400" && test.result.responses[0].status != "413") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
    else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
 
@@ -464,7 +467,9 @@ void test_0039()
    };
 
    test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ four_gb.to!string ~ "\r\n\r\n", bodyReader);
-   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   if (test.result.status == ResultStatus.DATA_NOT_SENT) { test.error = "Data not sent"; }
+   else if (test.result.status == ResultStatus.KEEP_ALIVE && test.result.responses.length == 0) { test.error = "Server is not blocking data sending?"; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "400" && test.result.responses[0].status != "413") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
    else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
 
@@ -485,7 +490,8 @@ void test_0040()
    };
 
    test.run("POST /user HTTP/1.1\r\nConnection: close\r\nhost: localhost\r\nContent-length: " ~ one_kb.to!string ~ "\r\n\r\n", bodyReader);
-   if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   if (test.result.status == ResultStatus.DATA_NOT_SENT) { test.error = "Data not sent"; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "200") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
 
    test.print();
@@ -547,6 +553,81 @@ void test_0044()
    if (test.result.status != ResultStatus.CLOSED) { test.error = "Error: " ~ test.result.status.to!string; }
    else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
    else if (test.result.responses[0].status != "404") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+
+   test.print();
+}
+
+
+void test_0045()
+{
+   auto test = HttpTest("Long first line (DoS attack?)");
+
+   auto bodyReader = new class BodyReader
+   {
+      size_t size = 1024*1024*50; // 50MB
+      size_t remaining() { return size; }
+      char[] chunk(size_t sz) { auto data = 'a'.repeat(sz).to!(char[]); this.size -= data.length; return data; }
+   };
+
+   test.run("\0", bodyReader);
+
+   if (test.result.status == ResultStatus.SLOW_RESPONSE) { test.error = "Upload was taking too long. Freezed?"; }
+   else if (test.result.status == ResultStatus.KEEP_ALIVE && test.result.responses.length == 0) { test.error = "Not blocking data sending?"; }
+   else if (test.result.status == ResultStatus.DATA_NOT_SENT) { test.error = "Slow upload. Is server freezing?"; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "431" && test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
+
+   test.print();
+}
+
+void test_0046()
+{
+   auto test = HttpTest("Long headers (DoS attack?)");
+
+   auto bodyReader = new class BodyReader
+   {
+      size_t size = 1024*1024*50; // 50MB
+      size_t remaining() { return size; }
+      char[] chunk(size_t sz) { auto data = 'a'.repeat(sz).to!(char[]); this.size -= data.length; return data; }
+   };
+
+   test.run("GET / HTTP/1.0\r\n", bodyReader);
+
+   if (test.result.status == ResultStatus.SLOW_RESPONSE) { test.error = "Upload was taking too long. Freezed?"; }
+   else if (test.result.status == ResultStatus.DATA_NOT_SENT) { test.error = "Slow upload. Is server freezing?"; }
+   else if (test.result.status == ResultStatus.KEEP_ALIVE && test.result.responses.length == 0) { test.error = "Not blocking data sending?"; }
+   else if (test.result.responses.length != 1) { test.error = "Wrong number of responses: " ~ test.result.responses.length.to!string; }
+   else if (test.result.responses[0].status != "431" && test.result.responses[0].status != "400") { test.error = "Wrong status: " ~ test.result.responses[0].status.to!string; }
+   else test.message = "Returned status: " ~ test.result.responses[0].status.to!string;
+   test.print();
+}
+
+void test_0047()
+{
+   auto test = HttpTest("Check \"connection:\" header");
+
+   auto subtests = [
+      HttpTest("Check connection: k"),
+      HttpTest("Check connection: c"),
+      HttpTest("Check connection: a"),
+      HttpTest("Check connection: cloes"),
+      HttpTest("Check connection: Keep-"),
+      HttpTest("Check connection: Cl")
+   ];
+
+   foreach (ref subtest; subtests)
+   {
+      subtest.run("GET / HTTP/1.1\r\nConnection: k\r\nHost: localhost\r\n\r\n");
+   }
+
+   auto r = subtests[0].result.status;
+
+   foreach (subtest; subtests[1..$])
+      if (subtest.result.status != r || r == ResultStatus.SOCKET_EXCEPTION) { test.error = "Unmatched connection status"; }
+
+   if (test.passed)
+      test.message = "Connection status: " ~ r.to!string;
 
    test.print();
 }
